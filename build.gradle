@@ -10,7 +10,7 @@ apply plugin: 'distribution'
 apply plugin: 'java-library-distribution'
 apply plugin: 'os-package'
 apply plugin: 'net.researchgate.release'
-apply plugin: 'sonar-runner'
+apply plugin: 'org.sonarqube'
 apply plugin: 'jacoco'
 // END
 
@@ -123,8 +123,8 @@ buildscript {
        url "http://repo.oneplatform.build/nexus/content/groups/private/"
      }
      // END
-     
-        
+
+
      maven { url "http://maven.twttr.com" }
      maven { url "http://repo.typesafe.com/typesafe/releases" }
      maven { url "http://repo.maven.apache.org/maven2" }
@@ -140,7 +140,8 @@ buildscript {
     classpath group: 'eu.appsatori',        name: 'gradle-fatjar-plugin', version: '0.3'
     classpath group: 'com.thomsonreuters',  name: 'storm-deploy', version: '2.4.+'
     classpath group: 'gradle.plugin.org.detoeuf', name: 'swagger-codegen-plugin', version:'1.3'
-    // END 
+    classpath group: 'org.sonarsource.scanner.gradle', name: 'sonarqube-gradle-plugin', version: '1.2'
+    // END
   }
 }
 
@@ -169,8 +170,8 @@ repositories {
        url "http://repo.1p.thomsonreuters.com/nexus/content/repositories/releases/"
      }
      // END
-     
-        
+
+
      maven { url "http://maven.twttr.com" }
      maven { url "http://repo.typesafe.com/typesafe/releases" }
      maven { url "http://repo.maven.apache.org/maven2" }
@@ -180,7 +181,7 @@ dependencies {
      // 1p-service stuff - BEGIN
     compile group: 'com.thomsonreuters', name: '1p-service-lib', version: "${servicelib_version}"
     compile group: 'com.thomsonreuters', name: '1p-service-swagger', version: "${servicelib_version}"
-    
+
     compile group: 'com.thomsonreuters', name: '1p-service-api', version: "${servicelib_version}"
     compile group: 'com.thomsonreuters.data', name: '1p-data-event', version: '1.0.2'
     compile group: 'com.thomsonreuters.data', name: '1p-data-util', version: '1.0'
@@ -193,7 +194,7 @@ dependencies {
     testCompile 'com.sun.jersey.jersey-test-framework:jersey-test-framework-core:1.11'
     testCompile 'com.sun.jersey.jersey-test-framework:jersey-test-framework-external:1.11'
     // END
-    
+
     compile group: 'com.google.protobuf', name: 'protobuf-java', version:'2.6.1'
     compile group: 'com.amazonaws', name: 'aws-java-sdk-s3', version:'1.10.2'
     compile group: 'net.java.dev.jets3t', name: 'jets3t', version:'0.9.4'
@@ -224,6 +225,49 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version:'4.11'
     testCompile group: 'org.powermock', name: 'powermock-module-junit4', version:'1.5.2'
     testCompile group: 'org.powermock', name: 'powermock-api-mockito', version:'1.5.2'
+}
+
+allprojects {
+  apply plugin: 'jacoco'
+
+  jacoco {
+      toolVersion = "0.7.6.+"
+      reportsDir = file("${project.buildDir}/jacoco/reports")
+  }
+
+  sonarqube {
+      properties {
+          property "sonar.projectName", "1p-secor-service"
+          property "sonar.projectKey", "com.thomsonreuters:1p-secor-service"
+          property "sonar.branch", System.getenv("GIT_BRANCH") ?: ""
+          property "sonar.jacoco.reportPath", "${project.buildDir}/jacoco/test.exec"
+          property "sonar.exclusions", [
+              'src/main/java/com/thomsonreuters/handler/**',
+              'src/main/java/com/thomsonreuters/util/**',
+              'src/main/java/com/thomsonreuters/server/**',
+              'src/main/java/com/thomsonreuters/injection/**',
+              'src/main/java/com/thomsonreuters/rest/service/HealthcheckResource.java'
+          ]
+      }
+  }
+}
+
+subprojects {
+  buildscript {
+    repositories {
+      maven {
+        url "http://repo.oneplatform.build/nexus/content/groups/public/"
+      }
+      maven {
+        url "http://repo.oneplatform.build/nexus/content/groups/private/"
+      }
+    }
+  }
+  sonarqube {
+      properties {
+          property "sonar.projectName", project.name
+      }
+  }
 }
 
 //packaging tests
@@ -258,29 +302,6 @@ ospackage {
 }
 
 buildRpm.dependsOn installDist
-
-sonarRunner {
-  sonarProperties {
-    property "sonar.host.url", "http://sonar.oneplatform.build"
-    property "sonar.jdbc.url", "jdbc:mysql://sonar.c35w2xq4gxyh.us-west-2.rds.amazonaws.com:3306/sonar?useUnicode=true&characterEncoding=utf8&rewriteBatchedStatements=true"
-    property "sonar.jdbc.driverClassName", "com.mysql.jdbc.Driver"
-    property "sonar.jdbc.username", "$System.env.sonarUsername"
-    property "sonar.jdbc.password", "$System.env.sonarPassword"
-  }
-}
-
-jacoco {
-    toolVersion = "0.7.4.+"
-    reportsDir = file("$buildDir/reports/coverage")
-}
-
-jacocoTestReport {
-    reports {
-        xml.enabled true
-        csv.enabled false
-        html.destination "${buildDir}/reports/coverage/html"
-    }
-}
 //END
 
 // Generate the "build.properties" file used by the OstrichService in Secor
